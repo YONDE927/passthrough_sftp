@@ -25,8 +25,37 @@ int main(int argc, char* argv[]){
 
 	err = WSAStartup(MAKEWORD(2,0),&wsadata);
 	if(err != 0){
-		fprintf(stderr,"WSAStartup failed %d.",err);
+		fprintf(stderr,"WSAStartup failed %d.\n",err);
 	}
+	hostaddr = inet_addr(server_ip);
+
+	rc = libssh2_init(0);
+
+	if(rc!=0){
+		fprintf(stderr,"libssh2 init failed %d.\n",rc);
+	}
+
+	//tcp connections
+	sock = socket(AF_INET,SOCK_STREAM,0);
+	//サーバーのアドレス構造体
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons(22);
+	sin.sin_addr.s_addr = hostaddr;
+	if(connect(sock,(struct sockaddr*)&sin,sizeof(struct sockaddr_in))!=0){
+		fprintf(stderr,"connection failed %d.\n");
+		return -1;
+	}
+
+	//ssh session
+	session = libssh2_session_init();
+
+	if(!session){
+		return -1;
+	}
+
+	libssh2_session_set_blocking(session,1);
+
+	rc = libssh2_session_handshake(session,sock);
 
 	return 0;
 }
