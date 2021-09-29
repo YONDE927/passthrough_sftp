@@ -1,0 +1,11 @@
+CC = gcc
+INCLUDE = "C:\Program Files\libssh2\include"
+CFLAGS = -I$(INCLUDE)
+PROGRAM = mysftp
+OBJS = mysftp.c
+
+all: $(PROGRAM)
+$(PROGRAM): $(OBJS)
+			$(CC) $(OBJS) $(CFLAGS) -o $(PROGRAM)
+
+
