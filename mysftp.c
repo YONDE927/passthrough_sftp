@@ -21,7 +21,12 @@ int main(int argc, char* argv[]){
 	LIBSSH2_SFTP *sftp_session;
 	LIBSSH2_SFTP_HANDLE *sftp_handle;
 	WSADATA wsadata;
-	
+	int err;
+
+	err = WSAStartup(MAKEWORD(2,0),&wsadata);
+	if(err != 0){
+		fprintf(stderr,"WSAStartup failed %d.",err);
+	}
 
 	return 0;
 }
