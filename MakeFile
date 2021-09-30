@@ -1,6 +1,8 @@
 CC = gcc
-INCLUDE = "C:\Program Files\libssh2\include"
-CFLAGS = -I$(INCLUDE)
+INCLUDE = "C:\Users\svyut\vcpkg\installed\x86-windows\include"
+LIB = "C:\Users\svyut\vcpkg\installed\x86-windows\lib"
+DLL = "C:\Users\svyut\vcpkg\installed\x86-windows\bin"
+CFLAGS = -I$(INCLUDE) -L$(LIB) -lws2_32 -lssh2
 PROGRAM = mysftp
 OBJS = mysftp.c
 
