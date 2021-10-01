@@ -1,13 +1,13 @@
 CC = gcc
-INCLUDE = "C:\Users\svyut\vcpkg\installed\x86-windows\include"
-LIB = "C:\Users\svyut\vcpkg\installed\x86-windows\lib"
-DLL = "C:\Users\svyut\vcpkg\installed\x86-windows\bin"
-CFLAGS = -I$(INCLUDE) -L$(LIB) -lws2_32 -lssh2
+INCLUDE = "C:\Users\svyut\vcpkg\installed\x64-windows\include"
+LIB = "C:\Users\svyut\vcpkg\installed\x64-windows\lib"
+DLL = "C:\Users\svyut\vcpkg\installed\x64-windows\bin"
+CFLAGS = -I$(INCLUDE) -L$(LIB) -lssh2 -lws2_32  -lcrypto -g -Wall
 PROGRAM = mysftp
 OBJS = mysftp.c
 
 all: $(PROGRAM)
 $(PROGRAM): $(OBJS)
-			$(CC) $(OBJS) $(CFLAGS) -o $(PROGRAM)
+			$(CC) $(CFLAGS) -o $(PROGRAM) $(OBJS)
 
 
