@@ -1,3 +1,0 @@
-C:/Users/svyut/Documents/passthrough_sftp/build/CMakeFiles/mysftp.dir
-C:/Users/svyut/Documents/passthrough_sftp/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/svyut/Documents/passthrough_sftp/build/CMakeFiles/ZERO_CHECK.dir
