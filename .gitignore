@@ -1,4 +1,4 @@
 .vscode/
 build/
 pass_sftp/build/
-*.exe
+playground*
