@@ -35,5 +35,8 @@ ssh関係をlibsshを用いることに変更。
 参考：https://github.com/billziss-gh/winfsp/tree/master/tst/passthrough-fuse3
 
 ## 内部処理手順
-![sftp-passthrough手順](https://user-images.githubusercontent.com/42487271/136433812-84d9d381-d082-4b00-b996-bec801d73b5d.png)
-![sftp-passthrough手順2](https://user-images.githubusercontent.com/42487271/136436976-a1733673-327f-49b4-b601-f03da2dfe727.png)
+![Untitled Diagram-Page-2 drawio](https://user-images.githubusercontent.com/42487271/136437244-b80c029f-6712-4d00-8d68-973c9ed4e420.png)
+
+![Untitled Diagram-Page-3 drawio](https://user-images.githubusercontent.com/42487271/136437171-6c23fdfb-b210-49c9-8398-7fc1b9d1a426.png)
+
+
