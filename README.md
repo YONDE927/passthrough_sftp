@@ -36,3 +36,4 @@ ssh関係をlibsshを用いることに変更。
 
 ## 内部処理手順
 ![sftp-passthrough手順](https://user-images.githubusercontent.com/42487271/136433812-84d9d381-d082-4b00-b996-bec801d73b5d.png)
+![sftp-passthrough手順2](https://user-images.githubusercontent.com/42487271/136436976-a1733673-327f-49b4-b601-f03da2dfe727.png)
