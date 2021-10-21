@@ -2,3 +2,14 @@
 build/
 pass_sftp/build/
 playground*
+build
+*.ncb
+*.suo
+*.vcproj.*
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
+.vs
+*.exe
+*.install
+winfsp
