@@ -2,10 +2,13 @@
 #include <libssh/sftp.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <io.h>
+#include <errno.h>
+#include <unistd.h>
 #include <fcntl.h>
 
-#define HOSTIP "172.22.27.137"
+#define HOSTIP "172.25.217.120"
 #define HOSTPORT 22
 #define USERNAME "yuta"
 #define PASSWORD "taiki927"
@@ -108,7 +111,7 @@ int show_remote_processes(ssh_session session)
   nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
   while (nbytes > 0)
   {
-    if (_write(1, buffer, nbytes) != (unsigned int) nbytes)
+    if (write(1,buffer, nbytes) != (unsigned int) nbytes)
     {
       ssh_channel_close(channel);
       ssh_channel_free(channel);
@@ -240,7 +243,7 @@ int sftp_read_sync(ssh_session session, sftp_session sftp)
           return SSH_ERROR;
       }
       printf("nbytes : %d\n",nbytes);
-      printf("sizeof(buffer) : %d\n",sizeof(buffer));
+      printf("sizeof(buffer) : %ld\n",sizeof(buffer));
       //printf("%s\n",buffer);
       nwritten = write(fd, buffer, nbytes);
       printf("%d\n",nwritten);

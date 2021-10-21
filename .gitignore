@@ -13,3 +13,4 @@ build
 *.exe
 *.install
 winfsp
+*.o
