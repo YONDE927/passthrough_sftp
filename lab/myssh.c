@@ -1,5 +1,6 @@
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+#include <fuse3/fuse.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,71 +15,130 @@
 #define PASSWORD "taiki927"
 #define MAX_XFER_BUF_SIZE 16384
 
+char* mountpoint = "/home/yuta/tmp";
+
 int show_remote_processes(ssh_session);
-int sftp_initworld(ssh_session,sftp_session*);
-int sftp_list_dir(ssh_session, sftp_session);
+int sftp_init_(ssh_session*,sftp_session*);
+int sftp_getattr(ssh_session*,sftp_session*,char*);
+int sftp_list_dir(ssh_session, sftp_session,char*);
 int sftp_read_sync(ssh_session, sftp_session );
 
 int main()
 {
-  ssh_session my_ssh_session;
+  ssh_session myssh;
   sftp_session mysftp;
-  int rc;
-  unsigned int port = HOSTPORT;
-  const char *user = USERNAME;
-  const char *password = PASSWORD;
- 
-  my_ssh_session = ssh_new();
   
-  if (my_ssh_session == NULL)
-    exit(-1);
-
-
-  ssh_options_set(my_ssh_session, SSH_OPTIONS_HOST, HOSTIP);
-  ssh_options_set(my_ssh_session, SSH_OPTIONS_PORT, &port);
- 
-  //Connect to server
-  rc = ssh_connect(my_ssh_session);
-  if (rc != SSH_OK)
-  {
-    fprintf(stderr, "Error connecting to localhost: %s\n",
-            ssh_get_error(my_ssh_session));
-    exit(-1);
-  }
-  printf("connected\n");
-
-  //User authentication
-  rc = ssh_userauth_password(my_ssh_session, user, password);
-  if (rc != SSH_AUTH_SUCCESS)
-  {
-    fprintf(stderr, "Error authenticating with password: %s\n",
-            ssh_get_error(my_ssh_session));
-    ssh_disconnect(my_ssh_session);
-    ssh_free(my_ssh_session);
-    exit(-1);
-  }
-  printf("user auth success\n");
-
-  //init sftp
-  sftp_initworld(my_ssh_session,&mysftp);
-  
+  sftp_init_(&myssh,&mysftp);
 
   //do something
-  show_remote_processes(my_ssh_session);
+  //show_remote_processes(my_ssh_session);
+  sftp_getattr(&myssh,&mysftp,"/dir1/file3");
 
-  sftp_list_dir(my_ssh_session,mysftp);
+  sftp_list_dir(myssh,mysftp,"/dir1");
 
-  sftp_read_sync(my_ssh_session,mysftp);
+  //sftp_read_sync(my_ssh_session,mysftp);
   
   //delete sftp session
   sftp_free(mysftp);
 
   //close ssh
-  ssh_disconnect(my_ssh_session);
+  ssh_disconnect(myssh);
   printf("disconnected!\n");
-  ssh_free(my_ssh_session);
+  ssh_free(myssh);
 
   return 0;
+}
+
+int sftp_init_(ssh_session *ssh, sftp_session *sftp)
+{
+    int rc;
+    unsigned int port = HOSTPORT;
+    const char *user = USERNAME;
+    const char *password = PASSWORD;
+
+    //ssh session
+    //ssh = (ssh_session*)malloc(sizeof(ssh_session));
+    *ssh = ssh_new();
+
+    if (*ssh == NULL)
+        exit(-1);
+
+    ssh_options_set(*ssh, SSH_OPTIONS_HOST, HOSTIP);
+    ssh_options_set(*ssh, SSH_OPTIONS_PORT, &port);
+
+    //Connect to server
+    rc = ssh_connect(*ssh);
+    if (rc != SSH_OK)
+    {
+        fprintf(stderr, "Error connecting to localhost: %s\n",
+                ssh_get_error(*ssh));
+        exit(-1);
+    }
+    printf("connected!\n");
+
+    //User authentication
+    rc = ssh_userauth_password(*ssh, user, password);
+    if (rc != SSH_AUTH_SUCCESS)
+    {
+        fprintf(stderr, "Error authenticating with password: %s\n",
+                ssh_get_error(*ssh));
+        ssh_disconnect(*ssh);
+        ssh_free(*ssh);
+        exit(-1);
+    }
+    printf("User auth success!\n");
+
+    //sftp session
+    //sftp = (sftp_session*)malloc(sizeof(sftp_session));
+    *sftp = sftp_new(*ssh);
+    if (*sftp == NULL)
+    {
+        fprintf(stderr, "Error allocating SFTP session: %s\n",
+                ssh_get_error(*ssh));
+        return SSH_ERROR;
+    }
+
+    rc = sftp_init(*sftp);
+    if (rc != SSH_OK)
+    {
+        fprintf(stderr, "Error initializing SFTP session: code %d.\n",
+                sftp_get_error(*sftp));
+        sftp_free(*sftp);
+        return rc;
+    }
+    printf("sftp session start!\n");
+
+    return SSH_OK;
+}
+
+//fstat
+int sftp_getattr(ssh_session *ssh,sftp_session *sftp,char *path){
+    sftp_attributes attributes;
+    struct fuse_stat* stat;
+    char* _path;
+    //pathに/home/yutaを付ける。
+    _path = malloc(sizeof(mountpoint) + sizeof(path));
+    strcpy(_path,mountpoint);
+    strcat(_path,path);
+    printf("getattr %s\n",_path);
+    //sttp_statを呼ぶ。attributesにstatを格納
+    attributes = sftp_stat(*sftp,_path);
+    if(!attributes){
+        fprintf(stderr, "file info not obtained: %s\n",
+                ssh_get_error(*ssh));
+        return SSH_ERROR;
+    }
+    stat = malloc(sizeof(struct fuse_stat));
+    stat->st_size = attributes->size;
+    stat->st_uid = attributes->uid;
+    stat->st_gid = attributes->gid;
+    free(stat);
+    printf("name : %s\n",attributes->name);
+    printf("longname : %s\n",attributes->longname);
+    printf("size : %ld\n",attributes->size);
+    printf("owner : %s\n",attributes->owner);
+    free(_path);
+    return SSH_OK;
 }
 
 int show_remote_processes(ssh_session session)
@@ -134,37 +194,20 @@ int show_remote_processes(ssh_session session)
   return SSH_OK;
 }
 
-int sftp_initworld(ssh_session session,sftp_session*sftp)
-{
-  int rc;
 
-  *sftp = sftp_new(session);
-  if (*sftp == NULL)
-  {
-    fprintf(stderr, "Error allocating SFTP session: %s\n",
-            ssh_get_error(session));
-    return SSH_ERROR;
-  }
-
-  rc = sftp_init(*sftp);
-  if (rc != SSH_OK)
-  {
-    fprintf(stderr, "Error initializing SFTP session: code %d.\n",
-            sftp_get_error(*sftp));
-    sftp_free(*sftp);
-    return rc;
-  }
-
-  return SSH_OK;
-}
-
-int sftp_list_dir(ssh_session session, sftp_session sftp)
+int sftp_list_dir(ssh_session session, sftp_session sftp,char *path)
 {
   sftp_dir dir;
   sftp_attributes attributes;
   int rc;
- 
-  dir = sftp_opendir(sftp, "/home/yuta/");
+  char* _path;
+  //pathに/home/yutaを付ける。
+  _path = malloc(sizeof(mountpoint) + sizeof(path));
+  strcpy(_path,mountpoint);
+  strcat(_path,path);
+  printf("opendir %s\n",_path);
+
+  dir = sftp_opendir(sftp,_path);
   if (!dir)
   {
     fprintf(stderr, "Directory not opened: %s\n",
@@ -187,6 +230,7 @@ int sftp_list_dir(ssh_session session, sftp_session sftp)
  
      sftp_attributes_free(attributes);
   }
+  free(_path);
  
   if (!sftp_dir_eof(dir))
   {

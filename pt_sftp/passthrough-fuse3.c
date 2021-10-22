@@ -24,8 +24,11 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <fuse.h>
+#include <libssh/libssh.h>
+#include <libssh/sftp.h>
+#include <fuse3/fuse.h>
 
 #if defined(_WIN64) || defined(_WIN32)
 #include "winposix.h"
@@ -53,6 +56,16 @@
     if (!concat_path(((PTFS *)fuse_get_context()->private_data), n, full ## n))\
         return -ENAMETOOLONG;           \
     n = full ## n
+
+#define HOSTIP "172.25.217.120"
+#define HOSTPORT 22
+#define USERNAME "yuta"
+#define PASSWORD "taiki927"
+#define MAX_XFER_BUF_SIZE 16384
+
+char* mountpoint = "/home/yuta/tmp";
+ssh_session myssh;
+sftp_session mysftp;
 
 typedef struct
 {
@@ -137,6 +150,45 @@ static int ptfs_truncate(const char *path, fuse_off_t size, struct fuse_file_inf
 static int ptfs_open(const char *path, struct fuse_file_info *fi)
 {
     ptfs_impl_fullpath(path);
+    char* _path;
+    char buffer[256];
+    sftp_file sftp_file;
+    int local_fd;
+    int nbytes, nwritten, rc;
+    //pathに/home/yutaを付ける。
+    _path = malloc(sizeof(mountpoint) + sizeof(path));
+    strcpy(_path,mountpoint);
+    strcat(_path,path);
+    sftp_file = sftp_open(mysftp,_path,O_RDONLY,0);
+    local_fd = open(path, O_CREAT|O_WRONLY,0777);
+    //ローカルにコピー
+    for (;;) {
+      nbytes = sftp_read(sftp_file, buffer, sizeof(buffer));
+      if (nbytes == 0) {
+          break; // EOF
+      } else if (nbytes < 0) {
+          fprintf(stderr, "Error while reading file: %s\n",
+                  ssh_get_error(myssh));
+          sftp_close(sftp_file);
+          return SSH_ERROR;
+      }
+      nwritten = write(local_fd, buffer, nbytes);
+      printf("%d\n",nwritten);
+      if (nwritten != nbytes) {
+          fprintf(stderr, "Error writing: %s\n",
+                  strerror(errno));
+          sftp_close(sftp_file);
+          return SSH_ERROR;
+      }
+    }
+    close(local_fd);
+    rc = sftp_close(sftp_file);
+
+    if (rc != SSH_OK) {
+        fprintf(stderr, "Can't close the read file: %s\n",
+                ssh_get_error(myssh));
+        return rc;
+    }
 
     int fd;
     return -1 != (fd = open(path, fi->flags)) ? (fi_setfd(fi, fd), 0) : -errno;
@@ -310,8 +362,71 @@ static void usage(void)
     exit(2);
 }
 
+int sftp_init_(ssh_session *ssh, sftp_session *sftp)
+{
+    int rc;
+    unsigned int port = HOSTPORT;
+    const char *user = USERNAME;
+    const char *password = PASSWORD;
+
+    //ssh session
+    //ssh = (ssh_session*)malloc(sizeof(ssh_session));
+    *ssh = ssh_new();
+
+    if (*ssh == NULL)
+        exit(-1);
+
+    ssh_options_set(*ssh, SSH_OPTIONS_HOST, HOSTIP);
+    ssh_options_set(*ssh, SSH_OPTIONS_PORT, &port);
+
+    //Connect to server
+    rc = ssh_connect(*ssh);
+    if (rc != SSH_OK)
+    {
+        fprintf(stderr, "Error connecting to localhost: %s\n",
+                ssh_get_error(*ssh));
+        exit(-1);
+    }
+    printf("connected!\n");
+
+    //User authentication
+    rc = ssh_userauth_password(*ssh, user, password);
+    if (rc != SSH_AUTH_SUCCESS)
+    {
+        fprintf(stderr, "Error authenticating with password: %s\n",
+                ssh_get_error(*ssh));
+        ssh_disconnect(*ssh);
+        ssh_free(*ssh);
+        exit(-1);
+    }
+    printf("User auth success!\n");
+
+    //sftp session
+    //sftp = (sftp_session*)malloc(sizeof(sftp_session));
+    *sftp = sftp_new(*ssh);
+    if (*sftp == NULL)
+    {
+        fprintf(stderr, "Error allocating SFTP session: %s\n",
+                ssh_get_error(*ssh));
+        return SSH_ERROR;
+    }
+
+    rc = sftp_init(*sftp);
+    if (rc != SSH_OK)
+    {
+        fprintf(stderr, "Error initializing SFTP session: code %d.\n",
+                sftp_get_error(*sftp));
+        sftp_free(*sftp);
+        return rc;
+    }
+    printf("sftp session start!\n");
+
+    return SSH_OK;
+}
+
 int main(int argc, char *argv[])
 {
+    sftp_init_(&myssh,&mysftp);
     PTFS ptfs = { 0 };
 
     if (3 <= argc && '-' != argv[argc - 2][0] && '-' != argv[argc - 1][0])

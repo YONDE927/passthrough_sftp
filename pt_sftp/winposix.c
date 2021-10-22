@@ -30,7 +30,7 @@
 
 #include <winfsp/winfsp.h>
 #include <fcntl.h>
-#include <fuse.h>
+#include <fuse3/fuse.h>
 #include "winposix.h"
 
 #pragma comment(lib, "ntdll.lib")

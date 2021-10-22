@@ -14,12 +14,12 @@
 #define MNTPOINT "./mnt"
 #define MAX_XFER_BUF_SIZE 16384
 
-int sftp_initworld(ssh_session *, sftp_session *);
+int sftp_init_(ssh_session *, sftp_session *);
 int sftp_list_dir(ssh_session *, sftp_session *);
 int sftp_read_sync(ssh_session *, sftp_session *);
 int sftp_closeworld(ssh_session *, sftp_session *);
 
-int sftp_initworld(ssh_session *ssh, sftp_session *sftp)
+int sftp_init_(ssh_session *ssh, sftp_session *sftp)
 {
     int rc;
     unsigned int port = HOSTPORT;

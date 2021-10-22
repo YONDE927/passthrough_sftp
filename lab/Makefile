@@ -1,5 +1,6 @@
 ARGS = -DCYGFUSE
-INCLUDES = -I/usr/includes
+INCLUDES = -I/usr/includes 
+INCLUDES2 = -I/cygdrive/c/'Program Files (x86)'/WinFsp/inc/
 LDFLAGS = -L/usr/libs
 LIBS = -lssh -lfuse-3.2
 
