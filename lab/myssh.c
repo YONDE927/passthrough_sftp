@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define HOSTIP "172.25.217.120"
+#define HOSTIP "172.23.20.169"
 #define HOSTPORT 22
 #define USERNAME "yuta"
 #define PASSWORD "taiki927"
@@ -129,14 +129,18 @@ int sftp_getattr(ssh_session *ssh,sftp_session *sftp,char *path){
         return SSH_ERROR;
     }
     stat = malloc(sizeof(struct fuse_stat));
+    stat->st_mode = attributes->permissions;
+    stat->st_nlink = 1;
     stat->st_size = attributes->size;
     stat->st_uid = attributes->uid;
     stat->st_gid = attributes->gid;
     free(stat);
     printf("name : %s\n",attributes->name);
     printf("longname : %s\n",attributes->longname);
+    printf("permission : %o\n",attributes->permissions);
     printf("size : %ld\n",attributes->size);
-    printf("owner : %s\n",attributes->owner);
+    printf("uid : %d\n",attributes->uid);
+    printf("gid : %d\n",attributes->gid);
     free(_path);
     return SSH_OK;
 }
@@ -193,7 +197,6 @@ int show_remote_processes(ssh_session session)
  
   return SSH_OK;
 }
-
 
 int sftp_list_dir(ssh_session session, sftp_session sftp,char *path)
 {

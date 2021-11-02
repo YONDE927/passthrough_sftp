@@ -57,25 +57,72 @@
         return -ENAMETOOLONG;           \
     n = full ## n
 
-#define HOSTIP "172.25.217.120"
+#define HOSTIP "172.23.20.169"
 #define HOSTPORT 22
 #define USERNAME "yuta"
 #define PASSWORD "taiki927"
 #define MAX_XFER_BUF_SIZE 16384
 
 char* mountpoint = "/home/yuta/tmp";
-ssh_session myssh;
-sftp_session mysftp;
+ssh_session ssh;
+sftp_session sftp;
+
+//debug用関数
+char* logpath = "/home/svyut/cyg_yuta/passthrough_sftp/pt_sftp/log.txt";
+void debug_ini(){
+    FILE *outputfile;
+    outputfile = fopen(logpath, "w");
+    fprintf(outputfile, "start\n");
+    fclose(outputfile);
+    return 0;
+}
+void debug(const char* message,char* var){
+    FILE *outputfile;
+    outputfile = fopen(logpath, "a");
+    fprintf(outputfile,"%s : var-> (%s)\n",message,var);
+    fclose(outputfile);
+    return 0;
+}
+
 
 typedef struct
 {
     const char *rootdir;
 } PTFS;
 
+int sftp_getattr(char *path,struct fuse_stat *stbuf){
+    debug("sftp_getattr",path);
+    sftp_attributes attributes;
+    char* _path;
+    //pathに/home/yutaを付ける。
+    _path = malloc(sizeof(mountpoint) + sizeof(path));
+    strcpy(_path,mountpoint);
+    strcat(_path,path);
+    //sttp_statを呼ぶ。attributesにstatを格納
+    attributes = sftp_stat(sftp,_path);
+    if(!attributes){
+        fprintf(stderr, "file info not obtained: %s\n",
+                ssh_get_error(ssh));
+        return SSH_ERROR;
+    }
+    stbuf->st_mode = attributes->permissions;
+    stbuf->st_size = attributes->size;
+    stbuf->st_uid = attributes->uid;
+    stbuf->st_gid = attributes->gid;
+    free(_path);
+    return SSH_OK;
+}
+
 static int ptfs_getattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)
 {
     if (0 == fi)
     {
+        if(sftp_getattr(path,stbuf)==0){
+            return 0;
+        }else{
+            return -errno;
+        }
+        debug("ptfs do getattr\n",path);
         ptfs_impl_fullpath(path);
 
         return -1 != lstat(path, stbuf) ? 0 : -errno;
@@ -159,7 +206,8 @@ static int ptfs_open(const char *path, struct fuse_file_info *fi)
     _path = malloc(sizeof(mountpoint) + sizeof(path));
     strcpy(_path,mountpoint);
     strcat(_path,path);
-    sftp_file = sftp_open(mysftp,_path,O_RDONLY,0);
+    sftp_file = sftp_open(sftp,_path,O_RDONLY,0);
+    //local_pathに倉庫用のパスを設定する。
     local_fd = open(path, O_CREAT|O_WRONLY,0777);
     //ローカルにコピー
     for (;;) {
@@ -168,7 +216,7 @@ static int ptfs_open(const char *path, struct fuse_file_info *fi)
           break; // EOF
       } else if (nbytes < 0) {
           fprintf(stderr, "Error while reading file: %s\n",
-                  ssh_get_error(myssh));
+                  ssh_get_error(ssh));
           sftp_close(sftp_file);
           return SSH_ERROR;
       }
@@ -186,7 +234,7 @@ static int ptfs_open(const char *path, struct fuse_file_info *fi)
 
     if (rc != SSH_OK) {
         fprintf(stderr, "Can't close the read file: %s\n",
-                ssh_get_error(myssh));
+                ssh_get_error(ssh));
         return rc;
     }
 
@@ -264,17 +312,91 @@ static int ptfs_removexattr(const char *path, const char *name)
     return -1 != lremovexattr(path, name) ? 0 : -errno;
 }
 
+
 static int ptfs_opendir(const char *path, struct fuse_file_info *fi)
 {
-    ptfs_impl_fullpath(path);
+    sftp_dir dir;
+    char* _path;
+    debug("ptfs_opendir",path);
+    //pathに/home/yutaを付ける。
+    _path = malloc(sizeof(mountpoint) + sizeof(path));
+    strcpy(_path,mountpoint);
+    strcat(_path,path);
+    printf("opendir %s\n",_path);
 
+    dir = sftp_opendir(sftp,_path);
+    if(dir){
+        
+    }else{
+        return -errno;
+    }
+    ptfs_impl_fullpath(path);
     DIR *dirp;
     return 0 != (dirp = opendir(path)) ? (fi_setdirp(fi, dirp), 0) : -errno;
+}
+
+int sftp_read_dir(char *path,void* buf,fuse_fill_dir_t filler)
+{
+  sftp_dir dir;
+  sftp_attributes attributes;
+  struct fuse_stat stat;
+  int rc;
+  char* _path;
+
+  debug("sftp_readdir",path);
+
+  //pathに/home/yutaを付ける。
+  _path = malloc(sizeof(mountpoint) + sizeof(path));
+  strcpy(_path,mountpoint);
+  strcat(_path,path);
+  printf("opendir %s\n",_path);
+
+  dir = sftp_opendir(sftp,_path);
+  if (!dir)
+  {
+    fprintf(stderr, "Directory not opened: %s\n",ssh_get_error(ssh));
+    return SSH_ERROR;
+  }
+  while ((attributes = sftp_readdir(sftp, dir)) != NULL)
+  {
+    stat.st_mode = attributes->permissions;
+    stat.st_size = attributes->size;
+    stat.st_uid = attributes->uid;
+    stat.st_gid = attributes->gid;
+    if (0 != filler(buf, attributes->name, &stat, 0, FUSE_FILL_DIR_PLUS)){
+        return -ENOMEM;
+    }
+    sftp_attributes_free(attributes);
+  }
+  free(_path);
+ 
+  if (!sftp_dir_eof(dir))
+  {
+    fprintf(stderr, "Can't list directory: %s\n",
+            ssh_get_error(ssh));
+    sftp_closedir(dir);
+    return SSH_ERROR;
+  }
+ 
+  rc = sftp_closedir(dir);
+  if (rc != SSH_OK)
+  {
+    fprintf(stderr, "Can't close directory: %s\n",
+            ssh_get_error(ssh));
+    return rc;
+  }
+  return rc;
 }
 
 static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fuse_off_t off,
     struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
+    if(0 == sftp_read_dir(path,buf,filler)){
+        return 0;
+    }else{
+        return -errno;
+    };
+
     DIR *dirp = fi_dirp(fi);
     struct dirent *de;
 
@@ -426,7 +548,8 @@ int sftp_init_(ssh_session *ssh, sftp_session *sftp)
 
 int main(int argc, char *argv[])
 {
-    sftp_init_(&myssh,&mysftp);
+    debug_ini();
+    sftp_init_(&ssh,&sftp);
     PTFS ptfs = { 0 };
 
     if (3 <= argc && '-' != argv[argc - 2][0] && '-' != argv[argc - 1][0])
